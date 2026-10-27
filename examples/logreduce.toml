@@ -1,0 +1,42 @@
+version = 1
+
+[input]
+include = ["**/*.log"]
+exclude = ["**/*.gz", "**/archive/**"]
+follow_symlinks = false
+
+[output]
+path = "merged.log"
+separator = "\n"
+delete_sources = true
+
+[engine]
+mode = "inplace"
+jobs = 0
+chunk_size = "8MiB"
+fsync = true
+sort = "path"
+allow_changing = false
+
+[[rules]]
+name = "丢弃调试行"
+action = "drop"
+match_type = "regex"
+pattern = '\b(DEBUG|TRACE)\b'
+flags = "i"
+
+[[rules]]
+name = "脱敏错误行中的 token"
+action = "replace"
+match_type = "regex"
+pattern = '(?i)(token=)[A-Za-z0-9._-]+'
+replacement = '\1***'
+when = "ERROR"
+when_type = "literal"
+
+[[rules]]
+name = "替换主机名"
+action = "replace"
+match_type = "literal"
+pattern = "old-host"
+replacement = "new-host"

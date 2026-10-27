@@ -1,0 +1,19 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "logreduce"
+version = "0.1.0"
+description = "High-performance streaming log filter/replace and merge CLI"
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "MIT" }
+authors = [{ name = "logReduce contributors" }]
+dependencies = []
+
+[project.scripts]
+logreduce = "logreduce.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
