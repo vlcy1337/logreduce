@@ -9,6 +9,7 @@
 - 合并成功后删除源文件；失败时不会误删。
 - 全程按 `bytes` 流式处理，不强制 UTF-8 解码，二进制安全，保留 CRLF 和末尾无换行等细节。
 - 纯标准库，零运行时依赖。
+- 附带本地 Web GUI，适合不熟悉命令行的日常操作。
 
 ## 安装
 
@@ -65,6 +66,47 @@ logreduce --validate -c logreduce.toml
 - `0`：成功
 - `1`：运行错误（文件变化、输出已存在、删除失败等）
 - `2`：配置或参数错误
+
+## GUI
+
+安装后启动本地 Web GUI：
+
+```bash
+logreduce-gui
+```
+
+源码运行：
+
+```bash
+PYTHONPATH=src python3 -m logreduce.gui
+```
+
+默认只监听 `127.0.0.1` 的随机端口，并自动打开浏览器。可选参数：
+
+```bash
+logreduce-gui --host 127.0.0.1 --port 8765
+logreduce-gui --no-browser
+```
+
+GUI 提供：
+
+- 配置文件、日志目录、输出文件路径输入
+- 读取配置并展示规则数、默认模式、输出路径
+- 模式：配置默认 / `inplace` / `direct`
+- 并行进程数
+- 校验配置、试运行、开始处理、停止
+- 实时日志与统计
+- 保留源文件、覆盖输出、跳过 fsync、允许文件变化、详细进度
+
+GUI 是现有 CLI 的薄控制层，通过子进程调用 `logreduce`，不会重复实现处理逻辑，性能与 CLI 一致。
+
+WSL 用户提示：GUI 运行在 Linux 侧，路径请填写 Linux 路径（例如 `/mnt/c/Users/...`），不要填写 `C:\...`。
+
+安全提示：
+
+- 默认只绑定回环地址，不要将 `--host 0.0.0.0` 暴露到不可信网络。
+- 页面没有登录认证，仅适合本机使用。
+- 默认仍会删除源文件，请先使用“试运行”或勾选“保留源文件”。
 
 ## 配置格式
 
@@ -223,8 +265,9 @@ src/logreduce/
   runner.py     批次划分、并行调度、分片任务
   models.py     输入文件/分片任务模型
   fsutil.py     原子写入、目录 fsync、copy_file_range
+  gui.py        本地 Web GUI、API、任务管理
   stats.py      统计与输出
-tests/          标准库 unittest 测试
+tests/          标准库 unittest 测试（含 GUI HTTP API 测试）
 bench/          合成日志基准脚本
 examples/       示例配置
 ```
