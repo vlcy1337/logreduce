@@ -6,6 +6,7 @@ import os
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Callable
 
 from .config import CompiledRule, compile_rules
 from .files import FileRange, WorkTask
@@ -15,6 +16,7 @@ _COPY_BUFFER_BYTES = 1024 * 1024
 _TEXT_BUFFER_BYTES = 1024 * 1024
 _WORKER_RULES: tuple[CompiledRule, ...] = ()
 _WORKER_ENCODING = "utf-8"
+TaskProgressCallback = Callable[[int, int, int, int], None]
 
 
 class ProcessingError(RuntimeError):
@@ -40,21 +42,33 @@ def execute_tasks(
     workers: int,
     rules: tuple[CompiledRule, ...],
     encoding: str,
+    task_progress: TaskProgressCallback | None = None,
 ) -> ProcessingResult:
     fragment_directory.mkdir(parents=True, exist_ok=True)
     if not tasks:
         return ProcessingResult(input_bytes=0, output_bytes=0)
 
     if workers <= 1 or len(tasks) == 1:
-        results = [
-            _process_task_direct(
+        results: list[TaskResult] = []
+        completed_input_bytes = 0
+        completed_output_bytes = 0
+        for task in tasks:
+            result = _process_task_direct(
                 task,
                 fragment_directory,
                 rules,
                 encoding,
             )
-            for task in tasks
-        ]
+            results.append(result)
+            completed_input_bytes += result.input_bytes
+            completed_output_bytes += result.output_bytes
+            _report_task_progress(
+                task_progress,
+                len(results),
+                len(tasks),
+                completed_input_bytes,
+                completed_output_bytes,
+            )
         return _summarize(results)
 
     context = multiprocessing.get_context("fork")
@@ -75,9 +89,21 @@ def execute_tasks(
                 for task in tasks
             }
             results: list[TaskResult] = []
+            completed_input_bytes = 0
+            completed_output_bytes = 0
             for future in as_completed(futures):
                 try:
-                    results.append(future.result())
+                    result = future.result()
+                    results.append(result)
+                    completed_input_bytes += result.input_bytes
+                    completed_output_bytes += result.output_bytes
+                    _report_task_progress(
+                        task_progress,
+                        len(results),
+                        len(tasks),
+                        completed_input_bytes,
+                        completed_output_bytes,
+                    )
                 except Exception as exc:
                     for pending in futures:
                         pending.cancel()
@@ -342,4 +368,21 @@ def _summarize(results: list[TaskResult]) -> ProcessingResult:
     return ProcessingResult(
         input_bytes=sum(result.input_bytes for result in results),
         output_bytes=sum(result.output_bytes for result in results),
+    )
+
+
+def _report_task_progress(
+    callback: TaskProgressCallback | None,
+    completed_tasks: int,
+    total_tasks: int,
+    input_bytes: int,
+    output_bytes: int,
+) -> None:
+    if callback is None:
+        return
+    callback(
+        completed_tasks,
+        total_tasks,
+        input_bytes,
+        output_bytes,
     )

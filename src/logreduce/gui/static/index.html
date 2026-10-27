@@ -1,0 +1,276 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="logreduce-token" content="__LOGREDUCE_TOKEN__">
+  <title>LogReduce GUI</title>
+  <link rel="stylesheet" href="/static/styles.css">
+  <script src="/static/app.js" defer></script>
+</head>
+<body>
+  <header class="app-header">
+    <div class="brand">
+      <span class="brand-mark" aria-hidden="true">LR</span>
+      <div>
+        <h1>LogReduce</h1>
+        <p>事务式日志筛选与归并</p>
+      </div>
+    </div>
+    <div class="connection" id="connection-status">
+      <span class="status-dot"></span>
+      <span>正在连接本地服务</span>
+    </div>
+  </header>
+
+  <main class="shell">
+    <section class="hero">
+      <div>
+        <p class="eyebrow">LOCAL SAFE WORKSPACE</p>
+        <h2>在浏览器中整理日志，<br>把风险留在确认之前。</h2>
+      </div>
+      <p class="hero-copy">
+        先预检，再执行。正式任务会移动并删除已被处理的源日志，
+        所有提交仍由 LogReduce 的事务和源文件校验保护。
+      </p>
+    </section>
+
+    <div class="workspace">
+      <section class="panel setup-panel" aria-labelledby="setup-title">
+        <div class="panel-heading">
+          <span class="step">01</span>
+          <div>
+            <h3 id="setup-title">选择工作区</h3>
+            <p>指定日志目录和 TOML 配置。</p>
+          </div>
+        </div>
+
+        <label class="field">
+          <span>日志目录</span>
+          <div class="input-row">
+            <input id="log-dir" type="text" autocomplete="off" spellcheck="false"
+                   placeholder="/var/log/application">
+            <button class="icon-button" id="browse-log-dir" type="button">浏览</button>
+          </div>
+        </label>
+
+        <label class="field">
+          <span>配置文件</span>
+          <div class="input-row">
+            <input id="config-path" type="text" autocomplete="off" spellcheck="false"
+                   placeholder="/path/to/reduce.toml">
+            <button class="icon-button" id="browse-config" type="button">打开</button>
+          </div>
+        </label>
+
+        <div class="button-row">
+          <button class="button secondary" id="new-config" type="button">新建配置</button>
+          <button class="button secondary" id="save-as-config" type="button">另存为</button>
+        </div>
+
+        <div class="run-options">
+          <label class="compact-field">
+            <span>Worker 数</span>
+            <input id="workers" type="number" min="1" step="1" placeholder="自动">
+          </label>
+          <label class="switch-row">
+            <input id="force-output" type="checkbox">
+            <span class="switch" aria-hidden="true"></span>
+            <span>覆盖已有输出</span>
+          </label>
+        </div>
+        <p class="inline-note">Worker 留空时使用当前 CPU 亲和集合。</p>
+      </section>
+
+      <section class="panel editor-panel" aria-labelledby="editor-title">
+        <div class="panel-heading editor-heading">
+          <span class="step">02</span>
+          <div>
+            <h3 id="editor-title">编辑处理规则</h3>
+            <p>规则从上到下依次执行。</p>
+          </div>
+          <span class="dirty-indicator" id="dirty-indicator">未保存</span>
+        </div>
+
+        <div class="tabs" role="tablist" aria-label="配置编辑模式">
+          <button class="tab active" id="form-tab" role="tab"
+                  aria-selected="true" aria-controls="form-view" type="button">
+            可视化表单
+          </button>
+          <button class="tab" id="raw-tab" role="tab"
+                  aria-selected="false" aria-controls="raw-view" type="button">
+            原始 TOML
+          </button>
+        </div>
+
+        <div id="form-view" role="tabpanel" aria-labelledby="form-tab">
+          <div class="form-grid">
+            <label class="field">
+              <span>输出文件</span>
+              <input id="output-path" type="text" autocomplete="off"
+                     placeholder="combined.log">
+            </label>
+            <label class="field">
+              <span>文本编码</span>
+              <input id="encoding" type="text" autocomplete="off"
+                     placeholder="utf-8">
+            </label>
+          </div>
+          <div class="rule-toolbar">
+            <div>
+              <strong>规则</strong>
+              <span id="rule-count">0 条</span>
+            </div>
+            <button class="button small" id="add-rule" type="button">添加规则</button>
+          </div>
+          <div class="rules" id="rules"></div>
+        </div>
+
+        <div id="raw-view" role="tabpanel" aria-labelledby="raw-tab" hidden>
+          <p class="inline-note">
+            直接编辑 TOML 后会自动校验。切回可视化表单时，无法保留的注释会被移除。
+          </p>
+          <textarea id="raw-config" class="raw-editor" spellcheck="false"
+                    aria-label="TOML 配置内容"></textarea>
+        </div>
+
+        <div class="editor-footer">
+          <div class="validation" id="validation-status" data-state="idle">
+            <span class="validation-dot"></span>
+            <span>尚未加载配置</span>
+          </div>
+          <button class="button secondary" id="save-config" type="button">保存配置</button>
+        </div>
+      </section>
+
+      <section class="panel run-panel" aria-labelledby="run-title">
+        <div class="panel-heading">
+          <span class="step">03</span>
+          <div>
+            <h3 id="run-title">预检与执行</h3>
+            <p>校验通过并保存配置后才能运行。</p>
+          </div>
+        </div>
+
+        <div class="run-actions">
+          <button class="button dry-run" id="dry-run" type="button">
+            <span>预检</span>
+            <small>不写入、不删除</small>
+          </button>
+          <button class="button danger" id="run-job" type="button">
+            <span>正式执行</span>
+            <small>提交后删除源日志</small>
+          </button>
+        </div>
+
+        <div class="job-card" id="job-card" hidden>
+          <div class="job-heading">
+            <div>
+              <span class="job-kind" id="job-kind">任务</span>
+              <strong id="job-state">准备中</strong>
+            </div>
+            <button class="text-button" id="cancel-job" type="button">取消</button>
+          </div>
+          <div class="progress-track" aria-hidden="true">
+            <progress class="progress-bar" id="progress-bar" max="100" value="0"></progress>
+          </div>
+          <div class="metric-grid">
+            <div><span>阶段</span><strong id="job-phase">starting</strong></div>
+            <div><span>任务</span><strong id="job-tasks">0 / 0</strong></div>
+            <div><span>输入</span><strong id="job-input">0 B</strong></div>
+            <div><span>输出</span><strong id="job-output">0 B</strong></div>
+          </div>
+          <div class="event-log" id="event-log" role="log" aria-live="polite"></div>
+        </div>
+
+        <div class="empty-state" id="job-empty">
+          <span class="empty-glyph" aria-hidden="true">↳</span>
+          <p>还没有运行任务。建议先执行一次预检，确认文件数量与输出路径。</p>
+        </div>
+      </section>
+    </div>
+  </main>
+
+  <dialog id="path-dialog" class="modal path-modal">
+    <form method="dialog" class="modal-card">
+      <div class="modal-heading">
+        <div>
+          <p class="eyebrow">FILESYSTEM</p>
+          <h3 id="path-dialog-title">选择路径</h3>
+        </div>
+        <button class="close-button" value="cancel" aria-label="关闭" type="submit">×</button>
+      </div>
+      <div class="path-controls">
+        <button class="icon-button" id="path-up" type="button">上一级</button>
+        <input id="path-current" type="text" spellcheck="false" aria-label="当前路径">
+        <button class="icon-button" id="path-go" type="button">前往</button>
+      </div>
+      <div class="path-list" id="path-list"></div>
+      <div class="modal-actions">
+        <p class="inline-note" id="path-hint"></p>
+        <button class="button" id="choose-current-directory" type="button">使用此目录</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="save-as-dialog" class="modal">
+    <form method="dialog" class="modal-card">
+      <div class="modal-heading">
+        <div>
+          <p class="eyebrow">SAVE CONFIGURATION</p>
+          <h3>另存为 TOML</h3>
+        </div>
+        <button class="close-button" value="cancel" aria-label="关闭" type="submit">×</button>
+      </div>
+      <label class="field">
+        <span>完整文件路径</span>
+        <div class="input-row">
+          <input id="save-as-path" type="text" spellcheck="false"
+                 placeholder="/path/to/reduce.toml">
+          <button class="icon-button" id="browse-save-directory" type="button">浏览</button>
+        </div>
+      </label>
+      <div class="modal-actions">
+        <span></span>
+        <button class="button" id="confirm-save-as" type="button">保存配置</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="confirm-dialog" class="modal">
+    <form method="dialog" class="modal-card danger-card">
+      <div class="modal-heading">
+        <div>
+          <p class="eyebrow danger-text">DESTRUCTIVE OPERATION</p>
+          <h3>确认正式执行</h3>
+        </div>
+        <button class="close-button" value="cancel" aria-label="关闭" type="submit">×</button>
+      </div>
+      <p>
+        任务成功后，以下目录中已处理的源日志会被移动并从工作区删除。
+        失败或中断时，事务恢复机制会尽量保留原始文件。
+      </p>
+      <dl class="confirm-summary">
+        <div><dt>日志目录</dt><dd id="confirm-log-dir"></dd></div>
+        <div><dt>配置文件</dt><dd id="confirm-config"></dd></div>
+        <div><dt>输出文件</dt><dd id="confirm-output"></dd></div>
+        <div><dt>Worker 数</dt><dd id="confirm-workers"></dd></div>
+        <div><dt>覆盖输出</dt><dd id="confirm-force"></dd></div>
+        <div><dt>最近预检</dt><dd id="confirm-preflight"></dd></div>
+      </dl>
+      <label class="acknowledge">
+        <input id="confirm-acknowledge" type="checkbox">
+        <span>我理解此操作会删除已成功处理的源日志。</span>
+      </label>
+      <div class="modal-actions">
+        <span></span>
+        <button class="button danger" id="confirm-run" type="button" disabled>
+          确认执行并删除源文件
+        </button>
+      </div>
+    </form>
+  </dialog>
+
+  <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
+</body>
+</html>

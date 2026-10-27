@@ -14,9 +14,13 @@ dependencies = []
 
 [project.scripts]
 logreduce = "logreduce.cli:main"
+logreduce-gui = "logreduce.gui:main"
 
 [tool.setuptools]
 package-dir = { "" = "src" }
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.setuptools.package-data]
+"logreduce.gui" = ["static/*"]

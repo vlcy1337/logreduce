@@ -20,6 +20,44 @@ python3 -m pip install -e .
 PYTHONPATH=src python3 -m logreduce --help
 ```
 
+## 图形界面
+
+安装后启动本地 GUI：
+
+```bash
+logreduce-gui
+```
+
+未安装时也可以在源码目录运行：
+
+```bash
+PYTHONPATH=src python3 -m logreduce.gui
+```
+
+命令会启动一个仅监听 `127.0.0.1` 的临时 HTTP 服务并打开浏览器。默认使用系统
+分配的空闲端口；如需指定端口或只打印地址而不自动打开浏览器：
+
+```bash
+logreduce-gui --port 8765 --no-browser
+```
+
+也可以预先指定工作区：
+
+```bash
+logreduce-gui \
+  --log-dir /var/log/application \
+  --config /var/log/application/reduce.toml
+```
+
+GUI 支持服务器端目录浏览、现有 TOML 文件加载、可视化规则编辑和原始 TOML
+编辑。配置通过现有校验器验证后才会原子保存；有未保存修改时不能预检或执行。
+通过可视化表单重写配置时，原有 TOML 注释不会保留。
+“预检”不会写入或删除任何文件，“正式执行”必须经过删除确认，并继续使用 CLI
+相同的目录锁、源文件变化检查和事务恢复机制。
+
+服务使用每次启动时生成的随机请求令牌，并校验 Host 和 Origin。它面向本机
+单用户使用，不提供局域网访问或多用户认证。按 `Ctrl+C` 停止服务。
+
 ## 配置
 
 ```toml
